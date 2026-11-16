@@ -52,6 +52,7 @@ The CA private key and all private keys are ignored by Git. The provisioning too
 
 \`\`\`bash
 cargo test
+cargo fmt --all
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo run
