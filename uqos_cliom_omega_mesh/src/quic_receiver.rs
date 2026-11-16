@@ -1,6 +1,6 @@
 use crate::{
     node_registry::NodeRegistry,
-    protocol::{unix_time_ms, TelemetryEnvelope, TelemetryEvent},
+    protocol::{unix_time_ms, TelemetryAck, TelemetryEnvelope, TelemetryEvent},
     tls::{load_certificates, load_private_key},
 };
 use anyhow::{Context, Result};
@@ -49,6 +49,7 @@ pub async fn start_uqos_quic_receiver(
     let transport = Arc::get_mut(&mut server_config.transport)
         .expect("new QUIC server config has unique transport ownership");
     transport.max_concurrent_uni_streams(MAX_UNI_STREAMS_PER_CONNECTION.into());
+    transport.max_concurrent_bidi_streams(MAX_UNI_STREAMS_PER_CONNECTION.into());
     transport.max_idle_timeout(Some(
         quinn::IdleTimeout::try_from(Duration::from_secs(60))
             .context("invalid QUIC idle timeout")?,
@@ -97,13 +98,36 @@ pub async fn start_uqos_quic_receiver(
                 },
             );
 
-            while let Ok(stream) = connection.accept_uni().await {
-                let registry = Arc::clone(&registry);
-                let telemetry_tx = telemetry_tx.clone();
-                let remote_address = remote_address.clone();
-                tokio::spawn(async move {
-                    process_stream(stream, registry, telemetry_tx, remote_address).await;
-                });
+            loop {
+                tokio::select! {
+                    result = connection.accept_uni() => {
+                        match result {
+                            Ok(stream) => {
+                                let registry = Arc::clone(&registry);
+                                let tx = telemetry_tx.clone();
+                                let remote = remote_address.clone();
+                                tokio::spawn(async move {
+                                    let (event, _) = verify_stream(stream, registry, remote).await;
+                                    publish_event(&tx, event);
+                                });
+                            }
+                            Err(_) => break,
+                        }
+                    }
+                    result = connection.accept_bi() => {
+                        match result {
+                            Ok((send, stream)) => {
+                                let registry = Arc::clone(&registry);
+                                let tx = telemetry_tx.clone();
+                                let remote = remote_address.clone();
+                                tokio::spawn(async move {
+                                    process_bi_stream(send, stream, registry, tx, remote).await;
+                                });
+                            }
+                            Err(_) => break,
+                        }
+                    }
+                }
             }
 
             log::info!("CLIOM QUIC connection closed: {remote_address}");
@@ -113,37 +137,37 @@ pub async fn start_uqos_quic_receiver(
     Ok(())
 }
 
-async fn process_stream(
+async fn verify_stream(
     mut stream: quinn::RecvStream,
     registry: Arc<NodeRegistry>,
-    telemetry_tx: broadcast::Sender<String>,
     remote_address: String,
-) {
+) -> (TelemetryEvent, bool) {
     let bytes = match stream.read_to_end(MAX_FRAME_BYTES).await {
         Ok(bytes) => bytes,
         Err(error) => {
-            publish_event(
-                &telemetry_tx,
-                rejected_event(remote_address, format!("stream rejected or exceeded {MAX_FRAME_BYTES}-byte limit: {error}")),
+            return (
+                rejected_event(
+                    remote_address,
+                    format!("stream rejected or exceeded {MAX_FRAME_BYTES}-byte limit: {error}"),
+                ),
+                false,
             );
-            return;
         }
     };
 
     let envelope: TelemetryEnvelope = match serde_json::from_slice(&bytes) {
         Ok(envelope) => envelope,
         Err(error) => {
-            publish_event(
-                &telemetry_tx,
+            return (
                 rejected_event(remote_address, format!("invalid telemetry envelope: {error}")),
+                false,
             );
-            return;
         }
     };
 
     match registry.verify_and_record(&envelope).await {
-        Ok(()) => {
-            let event = TelemetryEvent {
+        Ok(()) => (
+            TelemetryEvent {
                 status: "verified".into(),
                 received_at_unix_ms: unix_time_ms().unwrap_or_default(),
                 node_id: Some(envelope.node_id),
@@ -151,15 +175,37 @@ async fn process_stream(
                 remote_address,
                 frequency_tag: envelope.frequency_tag,
                 message: envelope.message,
-            };
-            publish_event(&telemetry_tx, event);
-        }
-        Err(error) => {
-            publish_event(
-                &telemetry_tx,
-                rejected_event(remote_address, format!("ONTOPOLICE policy rejection: {error}")),
-            );
-        }
+            },
+            true,
+        ),
+        Err(error) => (
+            rejected_event(remote_address, format!("ONTOPOLICE policy rejection: {error}")),
+            false,
+        ),
+    }
+}
+
+async fn process_bi_stream(
+    mut send: quinn::SendStream,
+    receive: quinn::RecvStream,
+    registry: Arc<NodeRegistry>,
+    telemetry_tx: broadcast::Sender<String>,
+    remote_address: String,
+) {
+    let (event, accepted) = verify_stream(receive, registry, remote_address).await;
+    let acknowledgement = TelemetryAck {
+        accepted,
+        message: if accepted {
+            "telemetry accepted and authenticated".into()
+        } else {
+            event.message.clone()
+        },
+    };
+    publish_event(&telemetry_tx, event);
+
+    if let Ok(bytes) = serde_json::to_vec(&acknowledgement) {
+        let _ = send.write_all(&bytes).await;
+        let _ = send.finish();
     }
 }
 
