@@ -1,3 +1,5 @@
+pub mod crypto;
+
 use std::fmt;
 
 pub const MAX_GRAPH_NODES: usize = 256;
