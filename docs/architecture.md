@@ -1,33 +1,41 @@
 # Architecture
 
-## Current implementation
+## Request path
 
-The first milestone is a small Rust service:
+1. Axum enforces a 1 MiB request-body limit.
+2. Non-loopback binds require a bearer token. Token comparison uses constant-time equality for equal-length values.
+3. The execution core validates the graph dimensions, node indices, and configured maximum.
+4. The deterministic Dijkstra routine computes the shortest path.
+5. A versioned manifest captures the operation, timestamp, policy version, input digest, and result.
+6. Ed25519 signs the SHA-256 digest of the serialized manifest.
+7. The signed record is appended to a JSONL audit chain and synced before the API returns it.
 
-1. **HTTP boundary** — Axum accepts JSON requests and returns structured responses.
-2. **Validation boundary** — the core checks graph size, matrix shape, and node indices before execution.
-3. **Execution core** — a pure Rust Dijkstra implementation calculates a shortest-path distance.
-4. **Test boundary** — unit tests cover valid results and important invalid-input cases.
+## Signed evidence
 
-The default listener is loopback-only (`127.0.0.1:3000`). This is a safe development default, not a deployment recipe. A publicly reachable deployment needs authentication, authorization, rate limiting, observability, and an explicit threat model before exposure.
+The signed record contains:
+- manifest schema version;
+- execution identifier and timestamp;
+- policy version and operation name;
+- SHA-256 digest of the serialized request;
+- result;
+- previous record digest;
+- manifest digest, public key, and Ed25519 signature.
 
-## Trust and proof vocabulary
+The verifier recomputes the manifest digest, compares the embedded key with an independently trusted key, and verifies the signature. The embedded key alone is not a trust anchor.
 
-- **Validation** means an input passed specified checks.
-- **Execution evidence** records what the service received and returned.
-- **Integrity** means data can be checked for unauthorized modification under a defined cryptographic scheme.
-- **Authentication** identifies or verifies a caller under a defined key and trust model.
-- **Formal proof** means a proof artifact is checked by a specified proof system.
+## Audit chain
 
-These terms are not interchangeable. The current milestone implements input validation and execution; it does not implement cryptographic authentication, tamper-evident logs, or formal proof checking.
+At startup, the service reads each existing JSONL record in order. It verifies the signature and digest and checks that each record's previous digest equals the preceding record digest. Any invalid record or broken link prevents startup.
 
-## Planned layers
+This is tamper-evident local storage, not immutable remote storage. Host compromise or private-key compromise defeats the local trust boundary. Key rotation and remote replication are future work.
 
-- Versioned request and response envelopes.
-- Canonical serialization and signed manifests.
-- Append-only, hash-linked execution records.
-- Policy evaluation and explicit capability boundaries.
-- Optional Lean4/Z3 proof adapters with reproducible proof checking.
-- Agent orchestration adapters and distributed execution.
+## Security boundaries
 
-Each layer must have tests and documented security assumptions before it is described as implemented.
+- Default listener: loopback only.
+- Non-loopback listener: refused unless `AETHELGARD_API_TOKEN` is configured.
+- Request body: maximum 1 MiB.
+- Private key: generated locally on first start or loaded from a configured 32-byte seed; default file permissions are owner-only on Unix.
+- TLS: not provided by this service; use a trusted TLS-terminating reverse proxy for remote traffic.
+- Proofs: no Lean, Z3, theorem prover, or formal proof artifact is currently integrated.
+
+A signature proves key possession and byte integrity under the key trust model. It does not establish semantic correctness or formal proof.
