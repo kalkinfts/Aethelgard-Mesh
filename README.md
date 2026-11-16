@@ -117,6 +117,10 @@ See [docs/architecture.md](docs/architecture.md), [SECURITY.md](SECURITY.md), an
 
 Roadmap items are not current capabilities. They will be marked implemented only after code, tests, and documentation support the claim.
 
+## Additional workspace: UQOS CLIOM-Ω
+
+A separate Rust workspace for authenticated QUIC telemetry ingress and a live WebSocket dashboard is available in [`uqos_cliom_omega_mesh/`](uqos_cliom_omega_mesh/README.md). It uses mutual TLS, Ed25519 node signatures, allowlisting, timestamp freshness, and replay protection. It is standard QUIC with multiple configured ingress sockets—not simultaneous RFC 10069 multipath QUIC.
+
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).

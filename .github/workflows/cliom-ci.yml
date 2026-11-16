@@ -1,0 +1,62 @@
+name: CLIOM Omega CI
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "uqos_cliom_omega_mesh/**"
+      - ".github/workflows/cliom-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "uqos_cliom_omega_mesh/**"
+      - ".github/workflows/cliom-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: uqos_cliom_omega_mesh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: uqos_cliom_omega_mesh -> target
+      - run: cargo fmt --all
+      - run: cargo fmt --all -- --check
+      - name: Validate deployment script syntax
+        run: bash -n deploy.sh
+      - run: cargo clippy --all-targets --all-features -- -D warnings
+      - run: cargo test --all-targets
+      - name: Exercise certificate provisioning
+        run: cargo run --bin provision-certs -- localhost
+      - name: Exercise additional node provisioning
+        run: cargo run --bin provision-node -- cliom-node-2
+      - name: Exercise authenticated QUIC end to end
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --bins
+          UQOS_QUIC_BINDS=127.0.0.1:14433 UQOS_DASHBOARD_BIND=127.0.0.1:18080 RUST_LOG=info ./target/debug/uqos-cliom-omega-mesh > /tmp/cliom.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18080/ >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:18080/ >/dev/null
+          cargo run --bin cliom-send -- 127.0.0.1:14433 localhost cliom-node-1 1 "CI authenticated telemetry"
+          CLIOM_CLIENT_CERT=certs/cliom-node-2-client.pem CLIOM_CLIENT_KEY=certs/cliom-node-2-client-key.pem CLIOM_NODE_SIGNING_KEY=certs/cliom-node-2-signing.key cargo run --bin cliom-send -- 127.0.0.1:14433 localhost cliom-node-2 1 "CI second node telemetry"
+          if cargo run --bin cliom-send -- 127.0.0.1:14433 localhost cliom-node-1 1 "replay attempt"; then
+            echo "Replay was unexpectedly accepted" >&2
+            exit 1
+          fi

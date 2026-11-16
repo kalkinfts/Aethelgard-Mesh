@@ -1,0 +1,5 @@
+/target/
+/certs/
+/state/
+authorized_nodes.json
+*.key

@@ -1,0 +1,26 @@
+[package]
+name = "uqos-cliom-omega-mesh"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+description = "Authenticated QUIC telemetry receiver and live UQOS dashboard"
+license = "Apache-2.0"
+
+[dependencies]
+anyhow = "1.0"
+axum = { version = "0.7", features = ["ws"] }
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+env_logger = "0.11"
+futures-util = "0.3"
+hex = "0.4"
+log = "0.4"
+quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
+rand = "0.8"
+rcgen = { version = "0.13", features = ["x509-parser"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-pemfile = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+
+[dev-dependencies]
