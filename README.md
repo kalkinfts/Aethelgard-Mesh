@@ -88,7 +88,13 @@ The response contains `distance` and a signed `execution` object. The example di
 
 ### Verify a signed record
 
-Send the `execution` object from the response as `execution` in a POST body to `/v1/verify`. The endpoint verifies against this node's configured public key. Independent clients should verify locally against their own pinned public key.
+Save the response's `execution` object to `record.json`, then verify locally with the pinned public key:
+
+```bash
+cargo run --bin aethelgard-verify -- <TRUSTED_PUBLIC_KEY_HEX> record.json
+```
+
+The CLI exits non-zero if the signature, digest, or key does not match. You can also send the object in a POST body as `{"execution": {...}}` to `/v1/verify`; that endpoint checks against this node's configured public key.
 
 ## Development
 
