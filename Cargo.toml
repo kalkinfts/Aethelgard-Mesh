@@ -8,7 +8,7 @@ license = "Apache-2.0"
 repository = "https://github.com/kalkinfts/Aethelgard-Mesh"
 
 [dependencies]
-axum = "0.7"
+axum = "0.8"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 hex = "0.4"
 log = "0.4"
