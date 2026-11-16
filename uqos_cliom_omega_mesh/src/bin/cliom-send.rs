@@ -4,7 +4,7 @@ use quinn::{ClientConfig, Endpoint};
 use rustls::RootCertStore;
 use std::{env, net::SocketAddr, path::Path, sync::Arc};
 use uqos_cliom_omega_mesh::{
-    protocol::{unix_time_ms, TelemetryEnvelope},
+    protocol::{unix_time_ms, TelemetryAck, TelemetryEnvelope},
     tls::{load_certificates, load_private_key},
 };
 
@@ -70,12 +70,21 @@ async fn main() -> Result<()> {
         .await
         .context("QUIC connection or mutual TLS authentication failed")?;
 
-    let mut stream = connection.open_uni().await?;
-    stream.write_all(&payload).await?;
-    stream.finish()?;
-    log::info!("Sent signed telemetry sequence {sequence} for node {node_id}");
+    let (mut send, mut receive) = connection.open_bi().await?;
+    send.write_all(&payload).await?;
+    send.finish()?;
 
-    connection.close(0_u32.into(), b"telemetry sent");
+    let ack_bytes = receive.read_to_end(1024).await
+        .context("could not read telemetry acknowledgement")?;
+    let acknowledgement: TelemetryAck = serde_json::from_slice(&ack_bytes)
+        .context("invalid telemetry acknowledgement")?;
+    if !acknowledgement.accepted {
+        bail!("receiver rejected telemetry: {}", acknowledgement.message);
+    }
+
+    println!("Accepted: {}", acknowledgement.message);
+    log::info!("Sent signed telemetry sequence {sequence} for node {node_id}");
+    connection.close(0_u32.into(), b"telemetry acknowledged");
     endpoint.wait_idle().await;
     Ok(())
 }
