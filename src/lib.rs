@@ -68,24 +68,23 @@ pub fn shortest_path(
         }
     }
 
-    let mut distances = vec![u64::MAX; node_count];
+    let mut distances = vec![None; node_count];
     let mut visited = vec![false; node_count];
-    distances[start] = 0;
+    distances[start] = Some(0_u64);
 
     for _ in 0..node_count {
         let current = (0..node_count)
             .filter(|&node| !visited[node])
-            .min_by_key(|&node| distances[node]);
+            .filter_map(|node| distances[node].map(|distance| (node, distance)))
+            .min_by_key(|&(_, distance)| distance)
+            .map(|(node, _)| node);
 
         let Some(current) = current else {
             break;
         };
 
-        if distances[current] == u64::MAX {
-            break;
-        }
         if current == end {
-            return Ok(Some(distances[current]));
+            return Ok(distances[current]);
         }
 
         visited[current] = true;
@@ -96,16 +95,17 @@ pub fn shortest_path(
             }
 
             let candidate = distances[current]
+                .expect("selected nodes always have a known distance")
                 .checked_add(weight)
                 .ok_or(GraphError::DistanceOverflow)?;
 
-            if candidate < distances[neighbor] {
-                distances[neighbor] = candidate;
+            if distances[neighbor].is_none_or(|known| candidate < known) {
+                distances[neighbor] = Some(candidate);
             }
         }
     }
 
-    Ok((distances[end] != u64::MAX).then_some(distances[end]))
+    Ok(distances[end])
 }
 
 #[cfg(test)]
@@ -158,6 +158,12 @@ mod tests {
             shortest_path(&graph, 0, 0),
             Err(GraphError::TooManyNodes { .. })
         ));
+    }
+
+    #[test]
+    fn supports_a_path_whose_distance_is_u64_max() {
+        let graph = vec![vec![0, u64::MAX], vec![0, 0]];
+        assert_eq!(shortest_path(&graph, 0, 1), Ok(Some(u64::MAX)));
     }
 
     #[test]
