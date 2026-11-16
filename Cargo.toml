@@ -9,7 +9,7 @@ repository = "https://github.com/kalkinfts/Aethelgard-Mesh"
 
 [dependencies]
 axum = "0.7"
-ed25519-dalek = { version = "2", features = ["rand_core"] }
+ed25519-dalek = { version = "3", features = ["rand_core"] }
 hex = "0.4"
 log = "0.4"
 env_logger = "0.11"
