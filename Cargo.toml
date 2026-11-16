@@ -1,14 +1,23 @@
 [package]
 name = "aethelgard-mesh"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.82"
-description = "Inspectable execution core and API for auditable agent systems"
+description = "Inspectable execution core and cryptographically signed audit records for agent systems"
 license = "Apache-2.0"
 repository = "https://github.com/kalkinfts/Aethelgard-Mesh"
 
 [dependencies]
 axum = "0.7"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+hex = "0.4"
+log = "0.4"
+env_logger = "0.11"
+rand = "0.8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"] }
+sha2 = "0.10"
+subtle = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "fs", "io-util"] }
+
+[dev-dependencies]

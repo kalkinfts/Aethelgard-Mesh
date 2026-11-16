@@ -224,3 +224,7 @@ __marimo__/
 
 # Rust build output
 /target/
+
+# Aethelgard private keys and local audit data
+.aethelgard/
+*.key
