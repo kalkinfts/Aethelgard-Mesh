@@ -99,6 +99,7 @@ The CLI exits non-zero if the signature, digest, or key does not match. You can 
 ## Development
 
 ```bash
+cargo fmt --all
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --all-targets

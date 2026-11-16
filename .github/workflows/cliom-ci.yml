@@ -35,6 +35,8 @@ jobs:
         run: bash -n deploy.sh
       - run: cargo clippy --all-targets --all-features -- -D warnings
       - run: cargo test --all-targets
+      - name: Build all release binaries
+        run: cargo build --release --bins
       - name: Exercise certificate provisioning
         run: cargo run --bin provision-certs -- localhost
       - name: Exercise additional node provisioning
