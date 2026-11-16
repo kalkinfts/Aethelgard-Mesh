@@ -7,7 +7,6 @@ use axum::{
     routing::get,
     Router,
 };
-use futures_util::{SinkExt, StreamExt};
 use tokio::sync::broadcast;
 
 pub fn create_dashboard_router(broadcaster: broadcast::Sender<String>) -> Router {
