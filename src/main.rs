@@ -1,6 +1,4 @@
 mod audit;
-mod crypto;
-
 use audit::AuditLog;
 use axum::{
     extract::{DefaultBodyLimit, Json, Request, State},
@@ -10,7 +8,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use crypto::{sha256_hex, ExecutionManifest, SignedExecution};
+use aethelgard_mesh::crypto::{sha256_hex, ExecutionManifest, SignedExecution};
 use ed25519_dalek::SigningKey;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
@@ -29,6 +27,7 @@ use tokio::sync::Mutex;
 use aethelgard_mesh::shortest_path;
 
 const POLICY_VERSION: &str = "aethelgard.policy.v1";
+static EXECUTION_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 #[derive(Clone)]
 struct AppState {
@@ -111,7 +110,12 @@ async fn execute(
 
     let manifest = ExecutionManifest {
         schema_version: 1,
-        execution_id: format!("{}-{}", created_at_unix_ms, std::process::id()),
+        execution_id: format!(
+            "{}-{}-{}",
+            created_at_unix_ms,
+            std::process::id(),
+            EXECUTION_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ),
         created_at_unix_ms,
         policy_version: POLICY_VERSION.to_string(),
         operation: "graph.shortest_path".to_string(),
