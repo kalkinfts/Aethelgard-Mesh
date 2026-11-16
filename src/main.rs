@@ -292,7 +292,7 @@ mod http_tests {
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["distance"], 12);
-        let record: crate::crypto::SignedExecution = serde_json::from_value(json["execution"].clone()).unwrap();
+        let record: aethelgard_mesh::crypto::SignedExecution = serde_json::from_value(json["execution"].clone()).unwrap();
         assert!(record.verify_with_trusted_key(&trusted_key));
         assert!(fs::read_to_string(&path).unwrap().contains(&record.record_sha256));
         let _ = fs::remove_file(path);
