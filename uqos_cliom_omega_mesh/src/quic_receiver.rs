@@ -14,7 +14,7 @@ use std::{net::SocketAddr, path::Path, sync::Arc, time::Duration};
 use tokio::sync::{broadcast, Semaphore};
 
 const MAX_FRAME_BYTES: usize = 16 * 1024;
-const MAX_UNI_STREAMS_PER_CONNECTION: u32 = 16;
+const MAX_STREAMS_PER_CONNECTION: u32 = 16;
 const MAX_CONNECTIONS_PER_ENDPOINT: usize = 128;
 
 pub async fn start_uqos_quic_receiver(
