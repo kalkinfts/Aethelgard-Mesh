@@ -41,7 +41,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          UQOS_QUIC_BINDS=127.0.0.1:14433 UQOS_DASHBOARD_BIND=127.0.0.1:18080 RUST_LOG=info cargo run --bin uqos-cliom-omega-mesh > /tmp/cliom.log 2>&1 &
+          cargo build --bins
+          UQOS_QUIC_BINDS=127.0.0.1:14433 UQOS_DASHBOARD_BIND=127.0.0.1:18080 RUST_LOG=info ./target/debug/uqos-cliom-omega-mesh > /tmp/cliom.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           for attempt in $(seq 1 30); do
