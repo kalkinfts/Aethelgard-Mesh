@@ -31,6 +31,8 @@ jobs:
           workspaces: uqos_cliom_omega_mesh -> target
       - run: cargo fmt --all
       - run: cargo fmt --all -- --check
+      - name: Validate deployment script syntax
+        run: bash -n deploy.sh
       - run: cargo clippy --all-targets --all-features -- -D warnings
       - run: cargo test --all-targets
       - name: Exercise certificate provisioning
