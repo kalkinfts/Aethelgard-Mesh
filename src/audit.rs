@@ -1,4 +1,4 @@
-use crate::crypto::{ExecutionManifest, SignedExecution};
+use aethelgard_mesh::crypto::{ExecutionManifest, SignedExecution};
 use ed25519_dalek::{SigningKey, VerifyingKey};
 use std::{fs, path::{Path, PathBuf}};
 use tokio::{fs::OpenOptions, io::AsyncWriteExt};
@@ -57,7 +57,7 @@ impl AuditLog {
 #[cfg(test)]
 mod tests {
     use super::AuditLog;
-    use crate::crypto::ExecutionManifest;
+    use aethelgard_mesh::crypto::ExecutionManifest;
     use ed25519_dalek::SigningKey;
     use rand::rngs::OsRng;
     use std::{fs, time::{SystemTime, UNIX_EPOCH}};
