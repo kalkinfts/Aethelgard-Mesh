@@ -11,10 +11,11 @@ use rustls::{
     RootCertStore,
 };
 use std::{net::SocketAddr, path::Path, sync::Arc, time::Duration};
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, Semaphore};
 
 const MAX_FRAME_BYTES: usize = 16 * 1024;
 const MAX_UNI_STREAMS_PER_CONNECTION: u32 = 16;
+const MAX_CONNECTIONS_PER_ENDPOINT: usize = 128;
 
 pub async fn start_uqos_quic_receiver(
     bind_address: SocketAddr,
@@ -56,11 +57,20 @@ pub async fn start_uqos_quic_receiver(
     let endpoint = Endpoint::server(server_config, bind_address)
         .with_context(|| format!("failed to bind QUIC endpoint at {bind_address}"))?;
     log::info!("CLIOM authenticated QUIC receiver listening on {bind_address} (UDP)");
+    let connection_slots = Arc::new(Semaphore::new(MAX_CONNECTIONS_PER_ENDPOINT));
 
     while let Some(incoming) = endpoint.accept().await {
+        let permit = match Arc::clone(&connection_slots).try_acquire_owned() {
+            Ok(permit) => permit,
+            Err(_) => {
+                incoming.refuse();
+                continue;
+            }
+        };
         let registry = Arc::clone(&registry);
         let telemetry_tx = telemetry_tx.clone();
         tokio::spawn(async move {
+            let _connection_permit = permit;
             let connection = match incoming.await {
                 Ok(connection) => connection,
                 Err(error) => {
