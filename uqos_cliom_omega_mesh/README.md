@@ -12,7 +12,7 @@ This workspace replaces the original demonstration's prefix-only packet check wi
 - Per-node public-key allowlist.
 - Five-minute timestamp freshness window.
 - Persistent per-node sequence numbers to reject replayed and out-of-order packets.
-- 16 KiB maximum telemetry stream and bounded concurrent unidirectional streams.
+- 16 KiB maximum telemetry stream, 16 concurrent uni/bidirectional streams per connection, and 128 concurrent connections per endpoint.
 - Dashboard displays only events that pass validation; rejected events are separately logged.
 - Dashboard binds to loopback by default and refuses a non-loopback bind. Put an authenticated TLS reverse proxy in front of it if remote access is required.
 
