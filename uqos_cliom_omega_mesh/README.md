@@ -46,7 +46,7 @@ This creates:
 - \`certs/node-signing.key\` and \`certs/node-signing.pub\`
 - \`authorized_nodes.json\`
 
-The CA private key and all private keys are ignored by Git. The provisioning tool refuses to overwrite an existing CA. Back up keys securely. To add another device, issue a separate client certificate and node signing key, then add its node ID and public key to the allowlist.
+The CA private key and all private keys are ignored by Git. The provisioning tool refuses to overwrite an existing CA. Back up keys securely. To add another device, run `cargo run --bin provision-node -- <node-id>`. This creates a separate client certificate and Ed25519 signing key and adds its public key to the allowlist. Transfer that device's credentials securely. When sending from a non-default node, set `CLIOM_CLIENT_CERT`, `CLIOM_CLIENT_KEY`, and `CLIOM_NODE_SIGNING_KEY` to that node's files.
 
 ## Run
 
