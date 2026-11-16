@@ -1,6 +1,5 @@
 use crate::protocol::{unix_time_ms, TelemetryEnvelope};
 use anyhow::{anyhow, bail, Context, Result};
-use ed25519_dalek::SigningKey;
 use serde::Deserialize;
 use std::{
     collections::HashMap,
