@@ -35,3 +35,5 @@ jobs:
       - run: cargo test --all-targets
       - name: Exercise certificate provisioning
         run: cargo run --bin provision-certs -- localhost
+      - name: Exercise additional node provisioning
+        run: cargo run --bin provision-node -- cliom-node-2
