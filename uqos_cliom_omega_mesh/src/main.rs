@@ -53,14 +53,12 @@ async fn main() -> Result<()> {
             });
         }
 
-        while let Some(result) = receivers.join_next().await {
-            match result {
-                Ok(Ok(())) => bail!("QUIC receiver stopped unexpectedly"),
-                Ok(Err(error)) => return Err(error),
-                Err(error) => return Err(error.into()),
-            }
+        match receivers.join_next().await {
+            Some(Ok(Ok(()))) => bail!("QUIC receiver stopped unexpectedly"),
+            Some(Ok(Err(error))) => Err(error),
+            Some(Err(error)) => Err(error.into()),
+            None => Ok(()),
         }
-        Ok::<(), anyhow::Error>(())
     });
 
     let listener = tokio::net::TcpListener::bind(dashboard_address).await
