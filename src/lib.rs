@@ -163,8 +163,8 @@ mod tests {
     #[test]
     fn reports_distance_overflow_instead_of_wrapping() {
         let graph = vec![
-            vec![0, u64::MAX, 0],
-            vec![0, 0, 1],
+            vec![0, u64::MAX - 1, 0],
+            vec![0, 0, 2],
             vec![0, 0, 0],
         ];
         assert_eq!(
