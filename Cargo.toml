@@ -21,3 +21,5 @@ subtle = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "fs", "io-util"] }
 
 [dev-dependencies]
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }
