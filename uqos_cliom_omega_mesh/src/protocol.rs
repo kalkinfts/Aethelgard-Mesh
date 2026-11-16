@@ -25,6 +25,12 @@ struct SigningPayload<'a> {
     message: &'a str,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelemetryAck {
+    pub accepted: bool,
+    pub message: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct TelemetryEvent {
     pub status: String,
