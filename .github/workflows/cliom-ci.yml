@@ -1,0 +1,34 @@
+name: CLIOM Omega CI
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "uqos_cliom_omega_mesh/**"
+      - ".github/workflows/cliom-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "uqos_cliom_omega_mesh/**"
+      - ".github/workflows/cliom-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: uqos_cliom_omega_mesh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: uqos_cliom_omega_mesh -> target
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets --all-features -- -D warnings
+      - run: cargo test --all-targets
