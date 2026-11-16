@@ -11,7 +11,6 @@ use rustls::{
     RootCertStore,
 };
 use std::{net::SocketAddr, path::Path, sync::Arc, time::Duration};
-use tokio::io::AsyncReadExt;
 use tokio::sync::broadcast;
 
 const MAX_FRAME_BYTES: usize = 16 * 1024;
