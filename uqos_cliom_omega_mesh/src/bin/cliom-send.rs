@@ -3,7 +3,6 @@ use ed25519_dalek::SigningKey;
 use quinn::{ClientConfig, Endpoint};
 use rustls::RootCertStore;
 use std::{env, net::SocketAddr, path::Path, sync::Arc};
-use tokio::io::AsyncWriteExt;
 use uqos_cliom_omega_mesh::{
     protocol::{unix_time_ms, TelemetryEnvelope},
     tls::{load_certificates, load_private_key},
@@ -50,7 +49,7 @@ async fn main() -> Result<()> {
 
     let node_seed = hex::decode(std::fs::read_to_string(Path::new(&node_key_path))?.trim())?;
     let node_seed: [u8; 32] = node_seed.as_slice().try_into()
-        .map_err(|_| "node signing key must decode to exactly 32 bytes")?;
+        .map_err(|_| anyhow::anyhow!("node signing key must decode to exactly 32 bytes"))?;
     let signing_key = SigningKey::from_bytes(&node_seed);
     let frequency_tag = env::var("CLIOM_FREQUENCY_TAG").ok();
 
