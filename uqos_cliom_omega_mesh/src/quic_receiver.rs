@@ -48,8 +48,8 @@ pub async fn start_uqos_quic_receiver(
     let mut server_config = ServerConfig::with_crypto(Arc::new(quic_crypto));
     let transport = Arc::get_mut(&mut server_config.transport)
         .expect("new QUIC server config has unique transport ownership");
-    transport.max_concurrent_uni_streams(MAX_UNI_STREAMS_PER_CONNECTION.into());
-    transport.max_concurrent_bidi_streams(MAX_UNI_STREAMS_PER_CONNECTION.into());
+    transport.max_concurrent_uni_streams(MAX_STREAMS_PER_CONNECTION.into());
+    transport.max_concurrent_bidi_streams(MAX_STREAMS_PER_CONNECTION.into());
     transport.max_idle_timeout(Some(
         quinn::IdleTimeout::try_from(Duration::from_secs(60))
             .context("invalid QUIC idle timeout")?,
