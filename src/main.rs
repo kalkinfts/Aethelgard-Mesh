@@ -207,6 +207,17 @@ fn load_signing_key() -> Result<SigningKey, Box<dyn std::error::Error + Send + S
     Ok(key)
 }
 
+fn build_app(state: AppState, api_token: Option<Arc<str>>) -> Router {
+    Router::new()
+        .route("/health", get(health))
+        .route("/v1/public-key", get(public_key))
+        .route("/v1/verify", post(verify))
+        .route("/v1/execute", post(execute))
+        .with_state(state)
+        .layer(DefaultBodyLimit::max(1024 * 1024))
+        .layer(middleware::from_fn_with_state(api_token, require_bearer))
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     env_logger::init();
@@ -233,18 +244,93 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         audit: Arc::new(Mutex::new(audit)),
     };
 
-    let app = Router::new()
-        .route("/health", get(health))
-        .route("/v1/public-key", get(public_key))
-        .route("/v1/verify", post(verify))
-        .route("/v1/execute", post(execute))
-        .with_state(state)
-        .layer(DefaultBodyLimit::max(1024 * 1024))
-        .layer(middleware::from_fn_with_state(api_token, require_bearer));
+    let app = build_app(state, api_token);
 
     let listener = tokio::net::TcpListener::bind(socket_address).await?;
     log::info!("Aethelgard Mesh listening on http://{socket_address}");
     log::info!("Policy: {POLICY_VERSION}; signed audit chain loaded");
     axum::serve(listener, app).await?;
     Ok(())
+}
+
+
+#[cfg(test)]
+mod http_tests {
+    use super::{build_app, AppState};
+    use crate::audit::AuditLog;
+    use axum::{body::Body, http::{Request, StatusCode}};
+    use ed25519_dalek::SigningKey;
+    use rand::rngs::OsRng;
+    use std::{fs, sync::Arc, time::{SystemTime, UNIX_EPOCH}};
+    use tokio::sync::Mutex;
+    use tower::ServiceExt;
+    use http_body_util::BodyExt;
+
+    fn test_state() -> (AppState, std::path::PathBuf) {
+        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let path = std::env::temp_dir().join(format!("aethelgard-api-{}-{nonce}.jsonl", std::process::id()));
+        let key = Arc::new(SigningKey::generate(&mut OsRng));
+        let audit = AuditLog::open(&path, &key.verifying_key()).unwrap();
+        (AppState { signing_key: key, audit: Arc::new(Mutex::new(audit)) }, path)
+    }
+
+    #[tokio::test]
+    async fn execute_endpoint_returns_a_valid_signed_record_and_persists_it() {
+        let (state, path) = test_state();
+        let trusted_key = hex::encode(state.signing_key.verifying_key().to_bytes());
+        let app = build_app(state, None);
+        let response = app.oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/execute")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"graph":[[0,4,0],[4,0,8],[0,8,0]],"start":0,"end":2}"#))
+                .unwrap()
+        ).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["distance"], 12);
+        let record: crate::crypto::SignedExecution = serde_json::from_value(json["execution"].clone()).unwrap();
+        assert!(record.verify_with_trusted_key(&trusted_key));
+        assert!(fs::read_to_string(&path).unwrap().contains(&record.record_sha256));
+        let _ = fs::remove_file(path);
+    }
+
+    #[tokio::test]
+    async fn non_loopback_auth_layer_rejects_missing_and_accepts_valid_bearer_token() {
+        let (state, path) = test_state();
+        let app = build_app(state, Some(Arc::<str>::from("test-token")));
+        let rejected = app.clone().oneshot(
+            Request::builder().uri("/health").body(Body::empty()).unwrap()
+        ).await.unwrap();
+        assert_eq!(rejected.status(), StatusCode::UNAUTHORIZED);
+
+        let accepted = app.oneshot(
+            Request::builder()
+                .uri("/health")
+                .header("authorization", "Bearer test-token")
+                .body(Body::empty())
+                .unwrap()
+        ).await.unwrap();
+        assert_eq!(accepted.status(), StatusCode::OK);
+        let _ = fs::remove_file(path);
+    }
+
+    #[tokio::test]
+    async fn invalid_graph_is_rejected_without_creating_an_audit_record() {
+        let (state, path) = test_state();
+        let app = build_app(state, None);
+        let response = app.oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/execute")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"graph":[[0,1],[1]],"start":0,"end":1}"#))
+                .unwrap()
+        ).await.unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert!(!path.exists());
+    }
 }
