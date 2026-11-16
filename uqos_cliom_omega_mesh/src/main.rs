@@ -41,19 +41,26 @@ async fn main() -> Result<()> {
     let receiver_registry = Arc::clone(&registry);
     let receiver_tx = telemetry_tx.clone();
     let receiver_task = tokio::spawn(async move {
+        let mut receivers = tokio::task::JoinSet::new();
         for address in quic_addresses {
             let registry = Arc::clone(&receiver_registry);
             let tx = receiver_tx.clone();
             let cert = server_cert.clone();
             let key = server_key.clone();
             let ca = client_ca.clone();
-            tokio::spawn(async move {
-                if let Err(error) = start_uqos_quic_receiver(address, cert, key, ca, registry, tx).await {
-                    log::error!("QUIC receiver at {address} stopped: {error:#}");
-                }
+            receivers.spawn(async move {
+                start_uqos_quic_receiver(address, cert, key, ca, registry, tx).await
             });
         }
-        std::future::pending::<()>().await;
+
+        while let Some(result) = receivers.join_next().await {
+            match result {
+                Ok(Ok(())) => bail!("QUIC receiver stopped unexpectedly"),
+                Ok(Err(error)) => return Err(error),
+                Err(error) => return Err(error.into()),
+            }
+        }
+        Ok::<(), anyhow::Error>(())
     });
 
     let listener = tokio::net::TcpListener::bind(dashboard_address).await
@@ -65,7 +72,11 @@ async fn main() -> Result<()> {
     let dashboard = axum::serve(listener, create_dashboard_router(telemetry_tx));
     tokio::select! {
         result = dashboard => result.context("dashboard server failed")?,
-        result = receiver_task => bail!("QUIC receiver supervisor stopped unexpectedly: {result:?}"),
+        result = receiver_task => match result {
+            Ok(Ok(())) => bail!("QUIC receiver supervisor stopped unexpectedly"),
+            Ok(Err(error)) => return Err(error),
+            Err(error) => return Err(error.into()),
+        },
     }
     Ok(())
 }
